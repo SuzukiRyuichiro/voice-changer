@@ -14,14 +14,20 @@ pip install sounddevice numpy scipy
 
 ## Key Commands
 
-**List audio devices:**
-```bash
-python test_devices.py
-```
-
-**Run the voice changer:**
+**Run the voice changer (with interactive device selection):**
 ```bash
 python voice_changer.py
+```
+The app will:
+1. List all available audio devices
+2. Prompt you to select input device
+3. Prompt you to select output device
+4. Prompt you to select voice effect
+5. Start real-time voice changing
+
+**List audio devices (for debugging):**
+```bash
+python test_devices.py
 ```
 
 ## Architecture
@@ -38,3 +44,7 @@ Main implementation is in `voice_changer.py` with interactive effect selection. 
 - Codebase is currently in active development
 - Pitch shifting is achieved through simple resampling (higher factor = higher pitch)
 - Audio callback must remain lightweight to avoid buffer underruns
+- **Cross-platform support**:
+  - On Mac/desktop: Select different devices for input (mic) and output (speakers)
+  - On Android: Can select the same "default" device for both input and output (common with wired headphones)
+  - The app auto-detects whether to use separate or unified device configuration

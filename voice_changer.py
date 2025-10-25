@@ -3,7 +3,6 @@ import numpy as np
 from scipy import signal
 
 # Settings
-SAMPLE_RATE = 44100  # External microphone's native rate
 BLOCK_SIZE = 1024    # Lower = less latency, higher CPU usage
 
 # Voice effect presets
@@ -47,16 +46,88 @@ def callback(indata, outdata, frames, time, status):
         else:
             shifted = shifted[:frames]
 
-        # Output to both channels (stereo)
-        outdata[:, 0] = shifted
-        outdata[:, 1] = shifted
+        # Output to all channels
+        for i in range(outdata.shape[1]):
+            outdata[:, i] = shifted
 
     except Exception as e:
         print(f"Error: {e}")
         outdata.fill(0)
 
+def list_devices():
+    """List all audio devices and return input/output capable devices"""
+    devices = sd.query_devices()
+
+    input_devices = []
+    output_devices = []
+
+    print("\n=== AVAILABLE AUDIO DEVICES ===\n")
+
+    for i, dev in enumerate(devices):
+        device_type = []
+        if dev['max_input_channels'] > 0:
+            device_type.append("INPUT")
+            input_devices.append(i)
+        if dev['max_output_channels'] > 0:
+            device_type.append("OUTPUT")
+            output_devices.append(i)
+
+        if device_type:  # Only show devices with input or output
+            print(f"[{i}] {dev['name']}")
+            print(f"    Type: {' & '.join(device_type)}")
+            print(f"    Channels: In={dev['max_input_channels']}, Out={dev['max_output_channels']}")
+            print(f"    Sample Rate: {int(dev['default_samplerate'])} Hz")
+            print()
+
+    return input_devices, output_devices, devices
+
+def select_device(device_list, device_type):
+    """Let user select a device from the list"""
+    while True:
+        choice = input(f"Select {device_type} device number: ").strip()
+        try:
+            device_num = int(choice)
+            if device_num in device_list:
+                return device_num
+            else:
+                print(f"❌ Device {device_num} is not a valid {device_type} device. Try again.")
+        except ValueError:
+            print("❌ Please enter a valid number.")
+
 # Main
-print("=== REAL-TIME VOICE CHANGER ===\n")
+print("=== REAL-TIME VOICE CHANGER ===")
+
+# Step 1: List devices and let user choose
+input_devices, output_devices, devices = list_devices()
+
+if not input_devices:
+    print("❌ No input devices found!")
+    exit(1)
+if not output_devices:
+    print("❌ No output devices found!")
+    exit(1)
+
+print("--- DEVICE SELECTION ---")
+input_device = select_device(input_devices, "INPUT")
+output_device = select_device(output_devices, "OUTPUT")
+
+# Get device info
+input_info = devices[input_device]
+output_info = devices[output_device]
+
+# Determine channels
+input_channels = min(input_info['max_input_channels'], 2)  # Use mono or stereo
+output_channels = min(output_info['max_output_channels'], 2)
+
+# Use the sample rate from the input device (or take minimum if different)
+sample_rate = int(input_info['default_samplerate'])
+
+print(f"\n✓ Input: [{input_device}] {input_info['name']} ({input_channels} ch)")
+print(f"✓ Output: [{output_device}] {output_info['name']} ({output_channels} ch)")
+print(f"✓ Sample Rate: {sample_rate} Hz")
+
+# Step 2: Select effect
+print("\n--- EFFECT SELECTION ---")
 print("Available effects:")
 for key, (name, _, _) in EFFECTS.items():
     print(f"  {key}: {name}")
@@ -69,17 +140,24 @@ else:
     print("\n✓ Using: Chipmunk (default)")
     current_effect = 1.5
 
-print(f"\nSample Rate: {SAMPLE_RATE} Hz")
-print(f"Latency: ~{BLOCK_SIZE/SAMPLE_RATE*1000:.1f}ms")
-print("\n🎤 Speak into your wired headphone mic")
-print("🔊 Output will go to your MacBook speakers")
-print("\nPress Enter or Ctrl+C to stop\n")
+# Step 3: Start streaming
+print(f"\nLatency: ~{BLOCK_SIZE/sample_rate*1000:.1f}ms")
+print("\n🎤 Starting voice changer...")
+print("Press Enter or Ctrl+C to stop\n")
 
 try:
-    with sd.Stream(device=(0, 3),  # 0=External Mic, 3=MacBook Speakers
-                   samplerate=SAMPLE_RATE,
+    # Handle case where input and output are the same device (common on Android)
+    if input_device == output_device:
+        device_config = input_device
+        channels_config = max(input_channels, output_channels)
+    else:
+        device_config = (input_device, output_device)
+        channels_config = (input_channels, output_channels)
+
+    with sd.Stream(device=device_config,
+                   samplerate=sample_rate,
                    blocksize=BLOCK_SIZE,
-                   channels=(1, 2),  # (input_channels, output_channels)
+                   channels=channels_config,
                    callback=callback):
         print("🔴 RECORDING... (voice changer active)\n")
         input("Press Enter to stop...\n")
@@ -88,3 +166,7 @@ except KeyboardInterrupt:
     print("\n\n✓ Stopped")
 except Exception as e:
     print(f"\n❌ Error: {e}")
+    print("\nTroubleshooting tips:")
+    print("- Try different devices")
+    print("- Check device permissions")
+    print("- Make sure devices are properly connected")
