@@ -15,9 +15,10 @@ for i, dev in enumerate(devices):
     print(f"    In: {dev['max_input_channels']}, Out: {dev['max_output_channels']}")
     print(f"    Sample Rate: {dev['default_samplerate']} Hz\n")
 
-# Get device selection
-device_id = int(input("Select device to test: ").strip())
+# Auto-select default device (device 0)
+device_id = 0
 dev_info = devices[device_id]
+print(f"Testing device: [{device_id}] {dev_info['name']}")
 
 # Test configurations
 configs = [
