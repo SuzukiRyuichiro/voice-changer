@@ -30,6 +30,12 @@ The app will:
 python test_devices.py
 ```
 
+**Test Android audio compatibility:**
+```bash
+python test_android.py
+```
+This script tests various sample rate and channel configurations to find what works on your Android device.
+
 ## Architecture
 
 The application uses:
@@ -48,3 +54,8 @@ Main implementation is in `voice_changer.py` with interactive effect selection. 
   - On Mac/desktop: Select different devices for input (mic) and output (speakers)
   - On Android: Can select the same "default" device for both input and output (common with wired headphones)
   - The app auto-detects whether to use separate or unified device configuration
+- **Android troubleshooting**:
+  - If you get "OpenSLES" errors, ensure Termux has RECORD_AUDIO permission
+  - Close other apps using audio (music players, voice recorders, etc.)
+  - Use `test_android.py` to find the optimal sample rate and channel configuration for your device
+  - Some devices work better with specific sample rates (44100 or 48000 Hz)

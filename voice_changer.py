@@ -148,25 +148,45 @@ print("Press Enter or Ctrl+C to stop\n")
 try:
     # Handle case where input and output are the same device (common on Android)
     if input_device == output_device:
-        device_config = input_device
-        channels_config = max(input_channels, output_channels)
+        # Same device - use duplex mode with unified configuration
+        print(f"\n⚠️  Using duplex mode (same device for input/output)")
+        with sd.Stream(device=input_device,
+                       samplerate=sample_rate,
+                       blocksize=BLOCK_SIZE,
+                       dtype='float32',
+                       channels=max(input_channels, output_channels),
+                       callback=callback):
+            print("🔴 RECORDING... (voice changer active)\n")
+            input("Press Enter to stop...\n")
     else:
-        device_config = (input_device, output_device)
-        channels_config = (input_channels, output_channels)
-
-    with sd.Stream(device=device_config,
-                   samplerate=sample_rate,
-                   blocksize=BLOCK_SIZE,
-                   channels=channels_config,
-                   callback=callback):
-        print("🔴 RECORDING... (voice changer active)\n")
-        input("Press Enter to stop...\n")
+        # Different devices - use separate input/output configuration
+        with sd.Stream(device=(input_device, output_device),
+                       samplerate=sample_rate,
+                       blocksize=BLOCK_SIZE,
+                       dtype='float32',
+                       channels=(input_channels, output_channels),
+                       callback=callback):
+            print("🔴 RECORDING... (voice changer active)\n")
+            input("Press Enter to stop...\n")
 
 except KeyboardInterrupt:
     print("\n\n✓ Stopped")
 except Exception as e:
     print(f"\n❌ Error: {e}")
     print("\nTroubleshooting tips:")
+
+    # Android-specific tips
+    if "OpenSLES" in str(e) or "android" in str(e).lower():
+        print("\n🤖 Android-specific issues detected:")
+        print("- Make sure Termux has RECORD_AUDIO permission")
+        print("- Close any other apps using the microphone/speakers")
+        print("- Try restarting Termux")
+        print("- Some Android devices require specific sample rates (try 44100 or 48000)")
+        print("- If using Bluetooth/USB audio, make sure it's fully connected")
+
+    # General tips
+    print("\n💡 General tips:")
     print("- Try different devices")
     print("- Check device permissions")
     print("- Make sure devices are properly connected")
+    print("- Try reducing BLOCK_SIZE if you get buffer errors")
