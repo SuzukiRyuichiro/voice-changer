@@ -3,7 +3,7 @@ import numpy as np
 from scipy import signal
 
 # Settings
-SAMPLE_RATE = 48000  # Your device's native rate
+SAMPLE_RATE = 44100  # External microphone's native rate
 BLOCK_SIZE = 1024    # Lower = less latency, higher CPU usage
 
 # Voice effect presets
@@ -35,8 +35,8 @@ def callback(indata, outdata, frames, time, status):
         print(status)
 
     try:
-        # Get mono audio (use first channel)
-        audio = indata[:, 0].copy()
+        # Get mono audio
+        audio = indata.flatten() if indata.ndim > 1 else indata.copy()
 
         # Apply pitch shift
         shifted = pitch_shift_simple(audio, 1.0 / current_effect)
@@ -76,10 +76,10 @@ print("🔊 Output will go to your Bluetooth speaker")
 print("\nPress Ctrl+C to stop\n")
 
 try:
-    with sd.Stream(device=0,
+    with sd.Stream(device=(0, 3),  # 0=External Mic, 3=MacBook Speakers
                    samplerate=SAMPLE_RATE,
                    blocksize=BLOCK_SIZE,
-                   channels=2,
+                   channels=(1, 2),  # (input_channels, output_channels)
                    callback=callback):
         print("🔴 RECORDING... (voice changer active)\n")
         sd.sleep(1000000)
