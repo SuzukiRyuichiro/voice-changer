@@ -72,8 +72,8 @@ else:
 print(f"\nSample Rate: {SAMPLE_RATE} Hz")
 print(f"Latency: ~{BLOCK_SIZE/SAMPLE_RATE*1000:.1f}ms")
 print("\n🎤 Speak into your wired headphone mic")
-print("🔊 Output will go to your Bluetooth speaker")
-print("\nPress Ctrl+C to stop\n")
+print("🔊 Output will go to your MacBook speakers")
+print("\nPress Enter or Ctrl+C to stop\n")
 
 try:
     with sd.Stream(device=(0, 3),  # 0=External Mic, 3=MacBook Speakers
@@ -82,7 +82,7 @@ try:
                    channels=(1, 2),  # (input_channels, output_channels)
                    callback=callback):
         print("🔴 RECORDING... (voice changer active)\n")
-        sd.sleep(1000000)
+        input("Press Enter to stop...\n")
 
 except KeyboardInterrupt:
     print("\n\n✓ Stopped")
