@@ -5,20 +5,14 @@ from scipy import signal
 # Settings
 BLOCK_SIZE = 1024    # Lower = less latency, higher CPU usage
 
-# Voice effect presets
-EFFECTS = {
-    '1': ('Chipmunk', 1.5, 1.0),      # pitch_shift, speed
-    '2': ('Deep Voice', 0.7, 1.0),
-    '3': ('Robot', 1.2, 0.8),
-    '4': ('Demon', 0.6, 0.9),
-    '5': ('Normal (passthrough)', 1.0, 1.0)
-}
+# Very subtle deep voice effect
+current_effect = 0.99
 
-# Current effect
-current_effect = 1.0
+# Sample rate (will be set after device selection)
+sample_rate = 44100
 
-def pitch_shift_simple(audio, shift_factor):
-    """Fast pitch shifting using resampling"""
+def pitch_shift_simple(audio, shift_factor, sample_rate=44100):
+    """Fast pitch shifting using resampling with Butterworth filter"""
     if shift_factor == 1.0:
         return audio
 
@@ -27,6 +21,15 @@ def pitch_shift_simple(audio, shift_factor):
     indices = np.linspace(0, len(audio) - 1, num_samples)
     shifted = np.interp(indices, np.arange(len(audio)), audio)
 
+    # Apply Butterworth low-pass filter to eliminate buzzing/artifacts
+    # Cutoff at 3000 Hz to preserve voice while removing high-freq artifacts
+    if len(shifted) > 20:
+        nyquist = sample_rate / 2
+        cutoff = 3000  # Hz - preserves voice clarity
+        normalized_cutoff = cutoff / nyquist
+        b, a = signal.butter(4, normalized_cutoff, btype='low')
+        shifted = signal.filtfilt(b, a, shifted)
+
     return shifted
 
 def callback(indata, outdata, frames, time, status):
@@ -34,21 +37,25 @@ def callback(indata, outdata, frames, time, status):
         print(status)
 
     try:
-        # Get mono audio
-        audio = indata.flatten() if indata.ndim > 1 else indata.copy()
-
-        # Apply pitch shift
-        shifted = pitch_shift_simple(audio, 1.0 / current_effect)
-
-        # Adjust length to match output frame size
-        if len(shifted) < frames:
-            shifted = np.pad(shifted, (0, frames - len(shifted)))
+        # True passthrough if effect is 1.0
+        if current_effect == 1.0:
+            outdata[:] = indata
         else:
-            shifted = shifted[:frames]
+            # Get mono audio
+            audio = indata.flatten() if indata.ndim > 1 else indata.copy()
 
-        # Output to all channels
-        for i in range(outdata.shape[1]):
-            outdata[:, i] = shifted
+            # Apply pitch shift
+            shifted = pitch_shift_simple(audio, current_effect, sample_rate)
+
+            # Adjust length to match output frame size
+            if len(shifted) < frames:
+                shifted = np.pad(shifted, (0, frames - len(shifted)))
+            else:
+                shifted = shifted[:frames]
+
+            # Output to all channels
+            for i in range(outdata.shape[1]):
+                outdata[:, i] = shifted
 
     except Exception as e:
         print(f"Error: {e}")
@@ -120,27 +127,14 @@ input_channels = min(input_info['max_input_channels'], 2)  # Use mono or stereo
 output_channels = min(output_info['max_output_channels'], 2)
 
 # Use the sample rate from the input device (or take minimum if different)
-sample_rate = int(input_info['default_samplerate'])
+sample_rate = int(input_info['default_samplerate'])  # Update global variable
 
 print(f"\n✓ Input: [{input_device}] {input_info['name']} ({input_channels} ch)")
 print(f"✓ Output: [{output_device}] {output_info['name']} ({output_channels} ch)")
 print(f"✓ Sample Rate: {sample_rate} Hz")
+print(f"✓ Effect: Deep Voice (pitch factor: {current_effect})")
 
-# Step 2: Select effect
-print("\n--- EFFECT SELECTION ---")
-print("Available effects:")
-for key, (name, _, _) in EFFECTS.items():
-    print(f"  {key}: {name}")
-
-choice = input("\nSelect effect (1-5): ").strip()
-if choice in EFFECTS:
-    effect_name, current_effect, _ = EFFECTS[choice]
-    print(f"\n✓ Using: {effect_name}")
-else:
-    print("\n✓ Using: Chipmunk (default)")
-    current_effect = 1.5
-
-# Step 3: Start streaming
+# Start streaming
 print(f"\nLatency: ~{BLOCK_SIZE/sample_rate*1000:.1f}ms")
 print("\n🎤 Starting voice changer...")
 print("Press Enter or Ctrl+C to stop\n")
