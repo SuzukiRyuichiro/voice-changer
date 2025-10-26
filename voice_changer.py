@@ -3,13 +3,18 @@ import numpy as np
 from scipy import signal
 
 # Settings
-BLOCK_SIZE = 1024    # Lower = less latency, higher CPU usage
+BLOCK_SIZE = 256    # Lower = less latency, higher CPU usage
+OVERLAP_SIZE = 64   # Overlap between blocks to smooth transitions (must be < BLOCK_SIZE)
 
 # Very subtle deep voice effect
-current_effect = 0.99
+current_effect = 0.85
 
 # Sample rate (will be set after device selection)
 sample_rate = 44100
+
+# Buffer for maintaining continuity between blocks
+previous_block = None
+overlap_buffer = None
 
 def pitch_shift_simple(audio, shift_factor, sample_rate=44100):
     """Fast pitch shifting using resampling with Butterworth filter"""
@@ -33,6 +38,8 @@ def pitch_shift_simple(audio, shift_factor, sample_rate=44100):
     return shifted
 
 def callback(indata, outdata, frames, time, status):
+    global overlap_buffer, previous_block
+
     if status:
         print(status)
 
@@ -52,6 +59,24 @@ def callback(indata, outdata, frames, time, status):
                 shifted = np.pad(shifted, (0, frames - len(shifted)))
             else:
                 shifted = shifted[:frames]
+
+            # Apply overlap-add crossfading to eliminate block boundary artifacts
+            if overlap_buffer is not None and len(overlap_buffer) > 0:
+                overlap_len = min(len(overlap_buffer), len(shifted))
+
+                # Create fade out/in windows (Hann window for smooth transition)
+                fade_out = np.linspace(1.0, 0.0, overlap_len)
+                fade_in = np.linspace(0.0, 1.0, overlap_len)
+
+                # Crossfade the overlapping region
+                shifted[:overlap_len] = (overlap_buffer[:overlap_len] * fade_out +
+                                         shifted[:overlap_len] * fade_in)
+
+            # Store the tail of current block for next iteration's crossfade
+            if len(shifted) >= OVERLAP_SIZE:
+                overlap_buffer = shifted[-OVERLAP_SIZE:].copy()
+            else:
+                overlap_buffer = shifted.copy()
 
             # Output to all channels
             for i in range(outdata.shape[1]):
@@ -136,6 +161,7 @@ print(f"✓ Effect: Deep Voice (pitch factor: {current_effect})")
 
 # Start streaming
 print(f"\nLatency: ~{BLOCK_SIZE/sample_rate*1000:.1f}ms")
+print(f"Overlap smoothing: {OVERLAP_SIZE} samples ({OVERLAP_SIZE/sample_rate*1000:.2f}ms)")
 print("\n🎤 Starting voice changer...")
 print("Press Enter or Ctrl+C to stop\n")
 
